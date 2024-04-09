@@ -1,11 +1,16 @@
 package ro.pub.cs.systems.eim.practicaltest01var03;
 
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -14,10 +19,16 @@ public class PracticalTest01Var03MainActivity extends AppCompatActivity {
     Button buttonPlus, buttonMinus, buttonNavigateToSecondaryActivity;
     EditText editText1, editText2;
     TextView textView;
+
+    boolean serviceStatus = false;
+
+    private ActivityResultLauncher<Intent> activityResultLauncher;
+    private ServiceBroadcastReceive messageBroadcastReceiver;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_practical_test01_var03_main);
+        messageBroadcastReceiver = new ServiceBroadcastReceive();
 
         buttonPlus = findViewById(R.id.buttonPlus);
         buttonMinus = findViewById(R.id.buttonMinus);
@@ -31,6 +42,7 @@ public class PracticalTest01Var03MainActivity extends AppCompatActivity {
         textView.setText("");
 
         buttonPlus.setOnClickListener(v -> {
+            verifyAndStartForegroundService();
             Integer int1, int2;
             try {
                 int1 = Integer.parseInt(editText1.getText().toString());
@@ -44,7 +56,8 @@ public class PracticalTest01Var03MainActivity extends AppCompatActivity {
         });
 
         buttonMinus.setOnClickListener(v -> {
-            Integer int1, int2;
+            verifyAndStartForegroundService();
+            int int1, int2;
             try {
                 int1 = Integer.parseInt(editText1.getText().toString());
                 int2 = Integer.parseInt(editText2.getText().toString());
@@ -55,6 +68,34 @@ public class PracticalTest01Var03MainActivity extends AppCompatActivity {
             String result = int1 + " - " + int2 + " = " + (int1 - int2);
             textView.setText(result);
         });
+
+        activityResultLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+            if (result.getResultCode() == RESULT_OK) {
+                Toast.makeText(getApplicationContext(), "The activity returned with correct result!", Toast.LENGTH_LONG).show();
+            } else if (result.getResultCode() == RESULT_CANCELED) {
+                Toast.makeText(getApplicationContext(), "The activity returned with incorrect result!", Toast.LENGTH_LONG).show();
+            }
+        });
+
+        buttonNavigateToSecondaryActivity.setOnClickListener(v -> {
+            String operation = textView.getText().toString();
+            Intent intent = new Intent(getApplicationContext(), PracticalTest01Var03SecondaryActivity.class);
+            intent.putExtra(Constants.OPERATION, operation);
+            activityResultLauncher.launch(intent);
+        });
+    }
+
+    private void verifyAndStartForegroundService() {
+        int num1 = Integer.parseInt(editText1.getText().toString());
+        int num2 = Integer.parseInt(editText2.getText().toString());
+
+        if (!serviceStatus) { // && !serviceStatus
+            serviceStatus = true;
+            Intent intent = new Intent(this, PracticalTest01Var03Service.class);
+            intent.putExtra(Constants.NUM1, num1);
+            intent.putExtra(Constants.NUM2, num2);
+            startForegroundService(intent);
+        }
     }
 
     @Override
@@ -87,5 +128,19 @@ public class PracticalTest01Var03MainActivity extends AppCompatActivity {
         } else {
             textView.setText("");
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(Constants.ACTION_STRING);
+        registerReceiver(messageBroadcastReceiver, intentFilter, Context.RECEIVER_EXPORTED);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        unregisterReceiver(messageBroadcastReceiver);
     }
 }
